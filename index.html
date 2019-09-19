@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fa">
+<html lang="fa" style="background: #00ccca;">
 <head>
     <meta charset="UTF-8">
     <title>نمودار روند وضعیت امور</title>
@@ -8,31 +8,14 @@
     <script src="app/Figures.js"></script>
     <script src="app/farsidate-1.0.1.min.js"></script>
     <script src="app/DataInspector.js"></script>
-    <style>
-        .btn {
-            background: #00cccb;
-            display: inline-block;
-            vertical-align: middle;
-            padding: 10px 15px;
-            font-size: .95rem;
-            font-family: Traffic, serif;
-            border: none;
-            border-radius: 5px;
-            text-align: center;
-            cursor: pointer;
-            transition: box-shadow .3s, background .3s, color .3s;
-            color: #fff;
-            -webkit-appearance: none !important;
-        }
-    </style>
     <link rel="stylesheet" href="app/DataInspector.css">
 </head>
-<body onload="init()" onresize="correctSize()">
+<body onload="init()" onresize="correctSize()" style="background: #ffffff; border-radius: 5px;">
 
 <table id="maintbl" style="width: 100%; height: 100%; font-family: Traffic, serif;">
     <tr>
         <td colspan="2" style="">
-            <span colspan="2" style="float: right; line-height: 40px;">به نام خدا</span>
+            <span style="float: right; line-height: 40px; padding: 0 10px; font-family: Titrbold,serif;">به نام خدا</span>
             <button id="SaveButton" onclick="save()" class="btn">ذخیره</button>
             <!--<button onclick="load('data/model.txt')">Load</button>-->
 
@@ -45,14 +28,21 @@
             <div id="myDiagramDiv" style="border: solid 1px black; width: 100%; height: 100px; margin: auto;"></div>
 
         </td>
-        <td width="1%" style="text-align: center;">
-            <div id="myOverviewDiv" style="width:150px; height: 150px; display: inline-block;"></div>
-            <button id="process" onclick="process()" class="btn">پردازش</button>
-            <hr>
-            <div id="myInspectorDiv" class="inspector"></div>
-            <br>
-
-
+        <td width="227px" style="text-align: center;">
+            <div style="height: 100%; background: #eeeeee;">
+                <div style="font-family: Titrbold,serif; background: #777777; color: #fff; line-height: 40px;">ابزارها
+                </div>
+                <hr class="style-three">
+                <label class="container"> قفل نمودار
+                    <input type="checkbox" id="myCheck" onclick="onlockdiagram()">
+                    <span class="checkmark"></span>
+                </label>
+                <hr class="style-three">
+                <div id="myOverviewDiv" style="width:150px; height: 150px; display: inline-block;"></div>
+                <!--<button id="process" onclick="process()" class="btn">پردازش</button>-->
+                <hr class="style-three">
+                <div id="myInspectorDiv" class="inspector" style="direction: rtl;"></div>
+            </div>
         </td>
 
     </tr>
@@ -62,7 +52,7 @@
 </body>
 
 <script id="code">
-    window.onbeforeunload = function(evt) {
+    window.onbeforeunload = function (evt) {
         let message = confirm("آیا می خواهید خارج شوید ؟");
 
         if (typeof evt == 'undefined') {
@@ -74,6 +64,8 @@
 
         return message;
     };
+
+    myDiagram = null;
 
     function init() {
         correctSize();
@@ -118,7 +110,7 @@
                 if (button.disabled) {
                     button.style.background = "#aaaaaa";
                 } else {
-                    button.style.background = "#00cccb";
+                    button.style.background = "#ffa100";
                 }
             }
 
@@ -372,7 +364,7 @@
                 // when multipleSelection is true, when showAllProperties is true it takes the union of properties
                 // otherwise it takes the intersection of properties
                 showAllProperties: true,
-                includesOwnProperties:false,
+                includesOwnProperties: false,
                 // uncomment this line to only inspect the named properties below instead of all properties on each object:
                 // includesOwnProperties: false,
                 properties: {
@@ -433,7 +425,7 @@
     }
 
     function correctSize() {
-        document.getElementById('myDiagramDiv').style.height = window.innerHeight * .85 + "px";
+        document.getElementById('myDiagramDiv').style.height = window.innerHeight - 16 - 40 - 2 - 2 - 8 + "px";
     }
 
     // Show the diagram's model in JSON format
@@ -518,8 +510,17 @@
         // myDiagram.layout.invalidateLayout();
         this.invalidateLayout();
     };
+
     // end FlatTreeLayout
 
+    function onlockdiagram() {
+        // Get the checkbox
+        let checkBox = document.getElementById("myCheck");
+        // If the checkbox is checked, display the output text
+        // myDiagram.isEnabled = !checkBox.checked;  // Disable the diagram!
+        myDiagram.model.isReadOnly = checkBox.checked;  // Disable adding or removing parts
+        myDiagram.isReadOnly = checkBox.checked;
+    }
 </script>
 
 </html>
