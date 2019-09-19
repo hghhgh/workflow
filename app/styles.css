@@ -1,0 +1,20 @@
+/* font-Titrbold */
+@font-face {
+    font-family: Titrbold;
+    src: url('font/titrbold.eot');
+    src: url('font/titrbold.eot?#iefix') format('embedded-opentype'),
+    url('font/titrbold.woff') format('woff'),
+    url('font/titrbold.ttf') format('truetype');
+    font-weight: normal;
+}
+
+
+/* font-Traffic */
+@font-face {
+    font-family: Traffic;
+    src: url('font/traffic.eot');
+    src: url('font/traffic.eot?#iefix') format('embedded-opentype'),
+    url('font/traffic.woff') format('woff'),
+    url('font/traffic.ttf') format('truetype');
+    font-weight: normal;
+}

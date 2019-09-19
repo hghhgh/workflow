@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <title>نمودار روند وضعیت امور</title>
+    <script src="app/go.js"></script>
+    <link rel="stylesheet" href="app/styles.css">
+    <script src="app/Figures.js"></script>
+    <script src="app/farsidate-1.0.1.min.js"></script>
+    <script src="app/DataInspector.js"></script>
+    <style>
+        .btn {
+            background: #00cccb;
+            display: inline-block;
+            vertical-align: middle;
+            padding: 10px 15px;
+            font-size: .95rem;
+            font-family: Traffic, serif;
+            border: none;
+            border-radius: 5px;
+            text-align: center;
+            cursor: pointer;
+            transition: box-shadow .3s, background .3s, color .3s;
+            color: #fff;
+            -webkit-appearance: none !important;
+        }
+    </style>
+    <link rel="stylesheet" href="app/DataInspector.css">
+</head>
+<body onload="init()" onresize="correctSize()">
+
+<table id="maintbl" style="width: 100%; height: 100%; font-family: Traffic, serif;">
+    <tr>
+        <td colspan="2" style="">
+            <span colspan="2" style="float: right; line-height: 40px;">به نام خدا</span>
+            <button id="SaveButton" onclick="save()" class="btn">ذخیره</button>
+            <!--<button onclick="load('data/model.txt')">Load</button>-->
+
+            <label for="file" class="btn">بارگزاری از فایل</label>
+            <input type="file" style="visibility:hidden;" id="file" name="file"/>
+        </td>
+    </tr>
+    <tr>
+        <td width="99%">
+            <div id="myDiagramDiv" style="border: solid 1px black; width: 100%; height: 100px; margin: auto;"></div>
+
+        </td>
+        <td width="1%" style="text-align: center;">
+            <div id="myOverviewDiv" style="width:150px; height: 150px; display: inline-block;"></div>
+            <button id="process" onclick="process()" class="btn">پردازش</button>
+            <hr>
+            <div id="myInspectorDiv" class="inspector"></div>
+            <br>
+
+
+        </td>
+
+    </tr>
+</table>
+
+
+</body>
+
+<script id="code">
+    window.onbeforeunload = function(evt) {
+        let message = confirm("آیا می خواهید خارج شوید ؟");
+
+        if (typeof evt == 'undefined') {
+            evt = window.event;
+        }
+        if (evt) {
+            evt.returnValue = message;
+        }
+
+        return message;
+    };
+
+    function init() {
+        correctSize();
+
+        const $ = go.GraphObject.make;  // for conciseness in defining templates
+        myDiagram =
+            $(go.Diagram, "myDiagramDiv",  // must name or refer to the DIV HTML element
+                {
+                    // have mouse wheel events zoom in and out instead of scroll up and down
+                    "toolManager.mouseWheelBehavior": go.ToolManager.WheelZoom,
+                    // support double-click in background creating a new node
+                    "clickCreatingTool.archetypeNodeData": {
+                        fill: "#aaaaaa",
+                        text: "شروع",
+                        time: new Date().fa().toString('yyyy dddd dd MMMM'),
+                        desc: "گره آغازین",
+                        type: "start"
+                    },
+                    // enable undo & redo
+                    "undoManager.isEnabled": true,
+                    "LinkReshaped": function (e) {
+                        e.subject.routing = go.Link.Orthogonal;
+                    },
+                    layout:
+                        $(FlatTreeLayout,  // custom Layout, defined below
+                            {
+                                angle: 90,
+                                compaction: go.TreeLayout.CompactionNone
+                            }),
+                });
+        myDiagram.grid.visible = true;
+        // myDiagram.grid.gridCellSize = new go.Size(30, 20);
+        myDiagram.toolManager.draggingTool.isGridSnapEnabled = true;
+        myDiagram.toolManager.resizingTool.isGridSnapEnabled = true;
+
+
+        // when the document is modified, add a "*" to the title and enable the "Save" button
+        myDiagram.addDiagramListener("Modified", function (e) {
+            let button = document.getElementById("SaveButton");
+            if (button) {
+                button.disabled = !myDiagram.isModified;
+                if (button.disabled) {
+                    button.style.background = "#aaaaaa";
+                } else {
+                    button.style.background = "#00cccb";
+                }
+            }
+
+            let idx = document.title.indexOf("*");
+            if (myDiagram.isModified) {
+                if (idx < 0) document.title += "*";
+            } else {
+                if (idx >= 0) document.title = document.title.substr(0, idx);
+            }
+        });
+        // define the Node template
+        myDiagram.nodeTemplate =
+            $(go.Node, "Vertical",
+                new go.Binding("location", "loc", go.Point.parse).makeTwoWay(go.Point.stringify),
+                {selectionObjectName: "BODY"},
+                $(go.Panel, "Auto", {name: "BODY"},
+                    // define the node's outer shape, which will surround the TextBlock
+                    $(go.Shape, "RoundedRectangle",
+                        {
+                            parameter1: 10,  // the corner has a large radius,
+                            // fill: $(go.Brush, "Linear", {0: "rgb(254, 201, 0)", 1: "rgb(254, 162, 0)"}),
+                            fill: "#aaaaaa",
+                            stroke: null,
+                            portId: "",  // this Shape is the Node's port, not the whole Node
+                            fromLinkable: true, fromLinkableSelfNode: true, fromLinkableDuplicates: true,
+                            toLinkable: true, toLinkableSelfNode: true, toLinkableDuplicates: true,
+                            cursor: "pointer"
+                        }, new go.Binding("fill").makeTwoWay()),
+                    $(go.TextBlock,
+                        {
+                            font: "bold 11pt Titrbold, helvetica, bold arial, sans-serif",
+                            margin: new go.Margin(4, 2, 2, 2),
+                            // editable: true  // editing the text automatically updates the model data
+                        },
+                        new go.Binding("text").makeTwoWay(),
+                    ),
+                    {
+                        toolTip:  // define a tooltip for each node that displays the color as text
+                            $("ToolTip",
+                                $(go.TextBlock, {margin: 4},
+                                    new go.Binding("text", "time"))
+                            )  // end of Adornment
+                    },
+                    {
+                        contextMenu:     // define a context menu for each node
+                            $("ContextMenu",  // that has one button
+                                $("ContextMenuButton",
+                                    $(go.TextBlock, "گره ویژه"),
+                                    {click: changeColor})
+                                // more ContextMenuButtons would go here
+                            )  // end Adornment
+                    },
+                ),
+                $(go.Panel,  // this is underneath the "BODY"
+                    {height: 17},  // always this height, even if the TreeExpanderButton is not visible
+                    $("TreeExpanderButton")
+                ),
+            );
+
+        // a function that produces the content of the diagram tooltip
+        function diagramInfo(model) {
+            return "Model:\n" + model.nodeDataArray.length + " nodes, " +
+                model.linkDataArray.length + " links";
+        }
+
+        // provide a tooltip for the background of the Diagram, when not over any Part
+        myDiagram.toolTip =
+            $("ToolTip",
+                $(go.TextBlock, {margin: 4},
+                    // use a converter to display information about the diagram model
+                    new go.Binding("text", "", diagramInfo))
+            );
+        // unlike the normal selection Adornment, this one includes a Button
+        myDiagram.nodeTemplate.selectionAdornmentTemplate =
+            $(go.Adornment, "Spot",
+                $(go.Panel, "Auto",
+                    $(go.Shape, {fill: null, stroke: "blue", strokeWidth: 2}),
+                    $(go.Placeholder)  // a Placeholder sizes itself to the selected Node
+                ),
+                // the button to create a "next" node, at the top-right corner
+                $("Button",
+                    {
+                        alignment: go.Spot.TopRight,
+                        click: addNodeAndLink  // this function is defined below
+                    },
+                    $(go.Shape, "PlusLine", {width: 6, height: 6})
+                ), // end button,
+                // the button to create a "next" node, at the top-right corner
+                $("Button",
+                    {
+                        alignment: go.Spot.TopLeft,
+                        click: showInfo  // this function is defined below
+                    },
+                    $(go.Shape, "RoundedRectangle", {width: 6, height: 6})
+                ) // end button
+            ); // end Adornment
+        // clicking the button inserts a new node to the right of the selected node,
+        // and adds a link to that new node
+        function addNodeAndLink(e, obj) {
+            let adornment = obj.part;
+            let diagram = e.diagram;
+            diagram.startTransaction("Add State");
+            // get the node data for which the user clicked the button
+            let fromNode = adornment.adornedPart;
+            let fromData = fromNode.data;
+            // create a new "State" data object, positioned off to the right of the adorned Node
+            let toData = {
+                text: "وضعیت جدید",
+                time: new Date().fa().toString('yyyy dddd dd MMMM'),
+                desc: "توضیحات",
+                type: "unknown",
+            }; // convert :   let d = Date(Date.now()).toString();
+            let p = fromNode.location.copy();
+            // p.x -= 200;
+            // p.y += 50;
+            toData.loc = go.Point.stringify(p);  // the "loc" property is a string, not a Point object
+            // add the new node data to the model
+            let model = diagram.model;
+            model.addNodeData(toData);
+            // create a link data from the old node data to the new node data
+            let linkdata = {
+                from: model.getKeyForNodeData(fromData),  // or just: fromData.id
+                to: model.getKeyForNodeData(toData),
+                // text: ""
+            };
+            // and add the link data to the model
+            model.addLinkData(linkdata);
+            // select the new Node
+            let newnode = diagram.findNodeForData(toData);
+            diagram.select(newnode);
+            diagram.commitTransaction("Add State");
+            // if the new node is off-screen, scroll the diagram to show the new node
+            diagram.scrollToRect(newnode.actualBounds);
+        }
+
+        function showInfo(e, obj) {
+            let adornment = obj.part;
+            let diagram = e.diagram;
+            let txt = prompt("Please enter your name:", adornment.data['desc']);
+            if (txt == null || txt === "") {
+                adornment.data['desc'] = "توضیحات";
+            } else {
+                adornment.data['desc'] = txt;
+            }
+            // debugger;
+        }
+
+        // replace the default Link template in the linkTemplateMap
+        myDiagram.linkTemplate =
+            $(go.Link,  // the whole link panel
+                // {
+                //     curve: go.Link.Bezier, adjusting: go.Link.Stretch,
+                //     reshapable: true, relinkableFrom: true, relinkableTo: true,
+                //     toShortLength: 3
+                // },
+                {
+                    routing: go.Link.AvoidsNodes,  // but this is changed to go.Link.Orthgonal when the Link is reshaped
+                    adjusting: go.Link.End,
+                    curve: go.Link.JumpOver,
+                    corner: 5,
+                    toShortLength: 4
+                },
+                new go.Binding("points").makeTwoWay(),
+                // remember the Link.routing too
+                new go.Binding("routing", "routing", go.Binding.parseEnum(go.Link, go.Link.AvoidsNodes))
+                    .makeTwoWay(go.Binding.toString),
+                // new go.Binding("curviness"),
+                $(go.Shape,  // the link shape
+                    {strokeWidth: 1.5}),
+                $(go.Shape,  // the arrowhead
+                    {toArrow: "standard", stroke: null}),
+                // $(go.Panel, "Auto",
+                //     $(go.Shape,  // the label background, which becomes transparent around the edges
+                //         {
+                //             fill: $(go.Brush, "Radial",
+                //                 {0: "rgb(255, 255, 255)", 0.3: "rgb(255, 255, 255)", 1: "rgba(255, 255, 255, 0)"}),
+                //             stroke: null
+                //         }),
+                //     $(go.TextBlock, "سعی مجدد",  // the label text
+                //         {
+                //             textAlign: "center",
+                //             font: "9pt Traffic, helvetica, arial, sans-serif",
+                //             margin: 4,
+                //             editable: true  // enable in-place editing
+                //         },
+                //         // editing the text automatically updates the model data
+                //         new go.Binding("text").makeTwoWay())
+                // )
+            );
+
+        // also define a context menu for the diagram's background
+        myDiagram.contextMenu =
+            $("ContextMenu",
+                $("ContextMenuButton",
+                    $(go.TextBlock, "Undo"),
+                    {
+                        click: function (e, obj) {
+                            e.diagram.commandHandler.undo();
+                        }
+                    },
+                    new go.Binding("visible", "", function (o) {
+                        return o.diagram.commandHandler.canUndo();
+                    }).ofObject()),
+                $("ContextMenuButton",
+                    $(go.TextBlock, "Redo"),
+                    {
+                        click: function (e, obj) {
+                            e.diagram.commandHandler.redo();
+                        }
+                    },
+                    new go.Binding("visible", "", function (o) {
+                        return o.diagram.commandHandler.canRedo();
+                    }).ofObject()),
+                // no binding, always visible button:
+                $("ContextMenuButton",
+                    $(go.TextBlock, "گره آغازین جدید"),
+                    {
+                        click: function (e, obj) {
+                            e.diagram.commit(function (d) {
+                                let data = {};
+                                d.model.addNodeData(data);
+                                part = d.findPartForData(data);  // must be same data reference, not a new {}
+                                // set location to saved mouseDownPoint in ContextMenuTool
+                                part.location = d.toolManager.contextMenuTool.mouseDownPoint;
+                            }, 'new node');
+                        }
+                    })
+            );
+
+        document.getElementById('file').addEventListener('change', handleFileSelect, false);
+        document.addEventListener("keydown", function (e) {
+            if ((window.navigator.platform.match("Mac") ? e.metaKey : e.ctrlKey) && e.keyCode === 83) {
+                e.preventDefault();
+                // Process the event here (such as click on submit button)
+                save();
+            }
+        }, false);
+
+        // create the Overview and initialize it to show the main Diagram
+        let myOverview =
+            $(go.Overview, "myOverviewDiv",
+                {observed: myDiagram});
+
+        // Show the primary selection's data, or blanks if no Part is selected:
+        let inspector = new Inspector('myInspectorDiv', myDiagram,
+            {
+                // allows for multiple nodes to be inspected at once
+                multipleSelection: true,
+                // max number of node properties will be shown when multiple selection is true
+                showSize: 4,
+                // when multipleSelection is true, when showAllProperties is true it takes the union of properties
+                // otherwise it takes the intersection of properties
+                showAllProperties: true,
+                includesOwnProperties:false,
+                // uncomment this line to only inspect the named properties below instead of all properties on each object:
+                // includesOwnProperties: false,
+                properties: {
+                    "text": {},
+                    "desc": {show: Inspector.showIfNode},
+                    // key would be automatically added for nodes, but we want to declare it read-only also:
+                    // "key": {readOnly: true, show: Inspector.showIfPresent},
+                    // color would be automatically added for nodes, but we want to declare it a color also:
+                    // "color": {show: Inspector.showIfPresent, type: 'color'},
+                    // Comments and LinkComments are not in any node or link data (yet), so we add them here:
+                    // "Comments": {show: Inspector.showIfNode},
+                    // "LinkComments": {show: Inspector.showIfLink},
+                    // "isGroup": {readOnly: true, show: Inspector.showIfPresent},
+                    // "flag": {show: Inspector.showIfNode, type: 'checkbox'},
+                    "type": {
+                        show: Inspector.showIfNode,
+                        type: "select",
+                        choices: function (node, propName) {
+                            if (Array.isArray(node.data.choices)) return node.data.choices;
+                            return ["unknown", "start", "middle", "end"];
+                        }
+                    },
+                    // "choices": {show: false},  // must not be shown at all
+                    // // an example of specifying the type
+                    // "password": {show: Inspector.showIfPresent, type: 'password'}
+                    "time": {},
+                }
+            });
+
+    }
+
+    function changeColor(e, obj) {
+        myDiagram.commit(function (d) {
+            // get the context menu that holds the button that was clicked
+            let contextmenu = obj.part;
+            // get the node data to which the Node is data bound
+            let nodedata = contextmenu.data;
+            // compute the next color for the node
+            let newcolor = "lightblue";
+            switch (nodedata.color) {
+                case "lightblue":
+                    newcolor = "lightgreen";
+                    break;
+                case "lightgreen":
+                    newcolor = "lightyellow";
+                    break;
+                case "lightyellow":
+                    newcolor = "orange";
+                    break;
+                case "orange":
+                    newcolor = "lightblue";
+                    break;
+            }
+            // modify the node data
+            // this evaluates data Bindings and records changes in the UndoManager
+            d.model.set(nodedata, "color", newcolor);
+        }, "changed color");
+    }
+
+    function correctSize() {
+        document.getElementById('myDiagramDiv').style.height = window.innerHeight * .85 + "px";
+    }
+
+    // Show the diagram's model in JSON format
+    function save() {
+        let element = document.createElement('a');
+        element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(myDiagram.model.toJson()));
+        element.setAttribute('download', 'model.txt');
+
+        element.style.display = 'none';
+        document.body.appendChild(element);
+
+        element.click();
+
+        document.body.removeChild(element);
+    }
+
+    // function load(fname) {
+    //     let client = new XMLHttpRequest();
+    //     client.open('GET', fname);
+    //     client.onreadystatechange = function() {
+    //         myDiagram.model = go.Model.fromJson(client.responseText);
+    //
+    //     };
+    //     client.send();
+    // }
+
+    function handleFileSelect(evt) {
+        let files = evt.target.files; // FileList object
+
+        // files is a FileList of File objects. List some properties.
+        for (let i = 0, f; f = files[i]; i++) {
+            let fr = new FileReader();
+            fr.onload = function () {
+                myDiagram.model = go.Model.fromJson(fr.result);
+
+            };
+            fr.readAsText(f);
+        }
+    }
+
+    // Customize the TreeLayout to position all of the leaf nodes at the same vertical Y position.
+    function FlatTreeLayout() {
+        go.TreeLayout.call(this);  // call base constructor
+    }
+
+    go.Diagram.inherit(FlatTreeLayout, go.TreeLayout);
+
+    // This assumes the TreeLayout.angle is 90 -- growing downward
+    FlatTreeLayout.prototype.commitLayout = function () {
+        go.TreeLayout.prototype.commitLayout.call(this);  // call base method first
+        // find maximum Y position of all Nodes
+        let y = -Infinity;
+        this.network.vertexes.each(function (v) {
+            y = Math.max(y, v.node.position.y);
+        });
+        // move down all leaf nodes to that Y position, but keeping their X position
+        this.network.vertexes.each(function (v) {
+            if (v.sourceEdges.count === 0) {
+            } else {
+                if (v.destinationEdges.count === 0) {
+                    // shift the node down to Y
+                    v.node.position = new go.Point(v.node.position.x, y);
+                    // extend the last segment vertically
+                    v.node.toEndSegmentLength = Math.abs(v.centerY - y);
+                    if (v.node.isTreeLeaf) {
+                        // all model changes should happen in a transaction
+                        myDiagram.model.commit(function (m) {
+                            m.set(v.node.data, "type", "end");
+                            m.set(v.node.data, "fill", "#00cccb");
+                        }, "leaf");
+                    }
+                } else {  // restore to normal value
+                    v.node.toEndSegmentLength = 10;
+                    myDiagram.model.commit(function (m) {
+                        m.set(v.node.data, "type", "middle");
+                        m.set(v.node.data, "fill", "#ffa100");
+                    }, "leaf");
+                }
+            }
+        });
+
+        // myDiagram.layout.invalidateLayout();
+        this.invalidateLayout();
+    };
+    // end FlatTreeLayout
+
+</script>
+
+</html>
