@@ -20,7 +20,7 @@ see also: dataInspector.js, dataInspector.html
 .inspector {
   display: inline-block;
   font: bold 14px helvetica, sans-serif;
-  background-color: #212121; /* Grey 900 */
+  /*background-color: #212121; !* Grey 900 *!*/
   color: #F5F5F5; /* Grey 100 */
   cursor: default;
 }
@@ -32,14 +32,17 @@ see also: dataInspector.js, dataInspector.html
 
 .inspector td, th {
   padding: 2px;
+  color: black;
 }
 
 .inspector input {
-  background-color: #424242; /* Grey 800 */
-  color: #F5F5F5; /* Grey 100 */
+  /*background-color: #424242; !* Grey 800 *!*/
+  /*color: #F5F5F5; !* Grey 100 *!*/
   font: bold 12px helvetica, sans-serif;
   border: 0px;
   padding: 2px;
+  line-height: 30px;
+  width: 100%;
 }
 
 .inspector input:disabled {
@@ -48,6 +51,7 @@ see also: dataInspector.js, dataInspector.html
 }
 
 .inspector select {
-  background-color: #424242;
+  /*background-color: #424242;*/
+  width: 100%;
 }
 

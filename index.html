@@ -28,13 +28,19 @@
             <div id="myDiagramDiv" style="border: solid 1px black; width: 100%; height: 100px; margin: auto;"></div>
 
         </td>
-        <td width="227px" style="text-align: center;">
-            <div style="height: 100%; background: #eeeeee;">
-                <div style="font-family: Titrbold,serif; background: #777777; color: #fff; line-height: 40px;">ابزارها
+        <td width="227px" style="text-align: center; ">
+            <div style="background: #eeeeee;height: 100%;overflow-y: scroll;">
+                <div style="font-family: Titrbold,serif; background: #777777; color: #fff; line-height: 40px;">
+                    ابزارها
                 </div>
                 <hr class="style-three">
                 <label class="container"> قفل نمودار
                     <input type="checkbox" id="myCheck" onclick="onlockdiagram()">
+                    <span class="checkmark"></span>
+                </label>
+                <hr class="style-three">
+                <label class="container">نمایش گرید
+                    <input type="checkbox" id="showgrid" onclick="showgrid()">
                     <span class="checkmark"></span>
                 </label>
                 <hr class="style-three">
@@ -78,7 +84,7 @@
                     "toolManager.mouseWheelBehavior": go.ToolManager.WheelZoom,
                     // support double-click in background creating a new node
                     "clickCreatingTool.archetypeNodeData": {
-                        fill: "#aaaaaa",
+                        fill: "#dedede",
                         text: "شروع",
                         time: new Date().fa().toString('yyyy dddd dd MMMM'),
                         desc: "گره آغازین",
@@ -96,10 +102,10 @@
                                 compaction: go.TreeLayout.CompactionNone
                             }),
                 });
-        myDiagram.grid.visible = true;
+        myDiagram.grid.visible = false;
         // myDiagram.grid.gridCellSize = new go.Size(30, 20);
-        myDiagram.toolManager.draggingTool.isGridSnapEnabled = true;
-        myDiagram.toolManager.resizingTool.isGridSnapEnabled = true;
+        myDiagram.toolManager.draggingTool.isGridSnapEnabled = false;
+        myDiagram.toolManager.resizingTool.isGridSnapEnabled = false;
 
 
         // when the document is modified, add a "*" to the title and enable the "Save" button
@@ -222,6 +228,7 @@
                 time: new Date().fa().toString('yyyy dddd dd MMMM'),
                 desc: "توضیحات",
                 type: "unknown",
+                closed: false
             }; // convert :   let d = Date(Date.now()).toString();
             let p = fromNode.location.copy();
             // p.x -= 200;
@@ -368,8 +375,12 @@
                 // uncomment this line to only inspect the named properties below instead of all properties on each object:
                 // includesOwnProperties: false,
                 properties: {
-                    "text": {},
-                    "desc": {show: Inspector.showIfNode},
+                    "text": {title:"عنوان"},
+                    "desc": {
+                        title:"توضیحات",
+                        show: Inspector.showIfNode,
+                        type:"textarea"
+                    },
                     // key would be automatically added for nodes, but we want to declare it read-only also:
                     // "key": {readOnly: true, show: Inspector.showIfPresent},
                     // color would be automatically added for nodes, but we want to declare it a color also:
@@ -380,6 +391,7 @@
                     // "isGroup": {readOnly: true, show: Inspector.showIfPresent},
                     // "flag": {show: Inspector.showIfNode, type: 'checkbox'},
                     "type": {
+                        title:"نوع",
                         show: Inspector.showIfNode,
                         type: "select",
                         choices: function (node, propName) {
@@ -390,7 +402,14 @@
                     // "choices": {show: false},  // must not be shown at all
                     // // an example of specifying the type
                     // "password": {show: Inspector.showIfPresent, type: 'password'}
-                    "time": {},
+                    "time": {
+                        title:"زمان ایجاد",
+                        readOnly: true,},
+                    "closed":{
+                        title:"توقف",
+                        show: Inspector.showIfNode,
+                        type:"checkbox"
+                    }
                 }
             });
 
@@ -432,7 +451,11 @@
     function save() {
         let element = document.createElement('a');
         element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(myDiagram.model.toJson()));
-        element.setAttribute('download', 'model.txt');
+
+        let dt = new Date();
+        let fname = "model_" + dt.getFullYear() +"-"+dt.getMonth() + "-"+dt.getDay() + "-"+dt.getHours()+"-"+dt.getMinutes()+"-"+dt.getSeconds() + ".txt";
+
+        element.setAttribute('download', fname);
 
         element.style.display = 'none';
         document.body.appendChild(element);
@@ -502,7 +525,14 @@
                     myDiagram.model.commit(function (m) {
                         m.set(v.node.data, "type", "middle");
                         m.set(v.node.data, "fill", "#ffa100");
-                    }, "leaf");
+                    }, "middle");
+                }
+                if(v.node.data.closed){
+                    myDiagram.model.commit(function (m) {
+                        m.set(v.node.data, "fill", "#5a5a5a");
+                        v.node.adornments = null;
+                        // debugger
+                    }, "closed");
                 }
             }
         });
@@ -520,6 +550,15 @@
         // myDiagram.isEnabled = !checkBox.checked;  // Disable the diagram!
         myDiagram.model.isReadOnly = checkBox.checked;  // Disable adding or removing parts
         myDiagram.isReadOnly = checkBox.checked;
+    }
+
+    function showgrid() {
+        let shgr = document.getElementById("showgrid");
+
+        myDiagram.grid.visible = shgr.checked;
+        myDiagram.toolManager.draggingTool.isGridSnapEnabled = shgr.checked;
+        myDiagram.toolManager.resizingTool.isGridSnapEnabled = shgr.checked;
+
     }
 </script>
 
